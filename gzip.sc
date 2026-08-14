@@ -41,17 +41,24 @@
     (foreign-procedure "igropyr_gzip_compress"
       (u8* unsigned-32 u8* u8* int) int))
 
+  ;; zlib's stream counters are 32-bit. The largest n whose output
+  ;; bound (n + n/1000 + 128) still fits in one is 4290676491; past
+  ;; that the stream cannot be described to the shim in one call, so
+  ;; refuse with #f up front instead of overflowing the counters.
+  (define max-input-size 4290676491)
+
   ;; Compress bv to gzip format. Returns #f on any zlib error.
   (define (gzip-compress bv level)
-    (let* ((n (bytevector-length bv))
-           (bound (+ n (quotient n 1000) 128))   ; safe deflate upper bound
-           (dst (make-bytevector bound))
-           (cap (make-bytevector 4)))
-      (bytevector-u32-native-set! cap 0 bound)
-      (and (fx= 0 (c-compress bv n dst cap level))
-           (let ((out (bytevector-u32-native-ref cap 0)))
-             (bytevector-truncate! dst out)
-             dst))))
+    (let ((n (bytevector-length bv)))
+      (and (<= n max-input-size)
+           (let* ((bound (+ n (quotient n 1000) 128)) ; safe deflate upper bound
+                  (dst (make-bytevector bound))
+                  (cap (make-bytevector 4)))
+             (bytevector-u32-native-set! cap 0 bound)
+             (and (fx= 0 (c-compress bv n dst cap level))
+                  (let ((out (bytevector-u32-native-ref cap 0)))
+                    (bytevector-truncate! dst out)
+                    dst))))))
 
   ;; does an Accept-Encoding header value allow gzip? Case-insensitive
   ;; search in place: no downcased copy, no per-position substring.
