@@ -75,4 +75,4 @@ dlopen a second zlib and recreate the coexistence described above.
 
 ## License
 
-MIT
+Apache License 2.0 — see [LICENSE](LICENSE).
